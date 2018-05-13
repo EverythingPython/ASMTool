@@ -1,5 +1,8 @@
 import sys
-from mutil.colorstr import *
+try:
+    from mutil.colorstr import *
+except:
+    pass
 
 
 def readable(i):
@@ -9,11 +12,16 @@ def readable(i):
 
 
 def ascii():
-    colors = [color.red, color.blue, color.green]
-    dec_color, hex_color, chr_color = colors
+    try:
+        colors = [color.red, color.blue, color.green]
+        dec_color, hex_color, chr_color = colors
+        spec_chr_color = color.green_magenta
+    except:
+        colors = [str] * 3
+        dec_color, hex_color, chr_color = colors
+        spec_chr_color = str
 
-    spec_chr_color = color.green_magenta
-    spec_chr = ['a', 'z', 'A', 'Z', '0', '9','\x0a','\x0b']
+    spec_chr = ['a', 'z', 'A', 'Z', '0', '9', '\x0a', '\x0b']
 
     table = []
 
@@ -28,7 +36,7 @@ def ascii():
         if readable(i):
             s = "%c" % i
         else:
-            s= ' '
+            s = ' '
 
         if chr(i) in spec_chr:
             res.append(spec_chr_color(s))
