@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import sys
 try:
     from mutil.colorstr import *
