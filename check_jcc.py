@@ -46,7 +46,7 @@ regs = [
 ]
 
 # place the jcc pair by pair
-jcc_list = [
+jcc_s = [
     'jz', 'jnz',  # 0, ==
     'ja', 'jb',  # uint
 
@@ -111,38 +111,18 @@ class UC_Checker(Checker):
 
         self.print_ctx()
 
+        eflagid = getattr(unicorn.x86_const, "UC_X86_REG_EFLAGS")
+        eflag = self.state.reg_read(eflagid)
+
+        import flags 
+        checker = flags.init()
+        print(checker.getRelation(eflag))
+
         # feasible = []
         # infeasible = []
-        # if jcc:
-        #     pending = [jcc]
-        # else:
-        #     pending = jcc_list
-        #
-        # for jcc in pending:
-        #     asm_code = 'target:; {} target; '.format(jcc)
-        #     jmp_code = pwn.asm(asm_code)
-        #     code_size = len(jmp_code)
-        #
-        #     addr = state.regs.eip.args[0]
-        #     irsb = pyvex.IRSB(jmp_code, addr, archinfo.ArchX86(), code_size)
-        #     # irsb.pp()
-        #
-        #     # we simulate the ins and get the successor state
-        #     simsucc = engine.process(state, irsb, inline=False)
-        #     succ = simsucc.successors[0]
-        #
-        #     # judge the jcc by the successor state
-        #     eip = succ.regs.eip.args[0]
-        #     if eip == addr:
-        #         feasible.append(jcc)
-        #     elif eip == addr + code_size:
-        #         infeasible.append(jcc)
-        #     else:
-        #         print "impossible eip"
-        #         raise Exception("impossible eip!")
-        #
-        # print "feasible:\n{}".format('\t'.join(feasible))
-        # print "infeasible:\n{}".format('\t'.join(infeasible))
+          
+        # print("feasible:\n{}".format('\t'.join(feasible)))
+        # print("infeasible:\n{}".format('\t'.join(infeasible)))
 
     def run_bin(self, bin_code):
         engine = self.engine
@@ -155,7 +135,7 @@ class UC_Checker(Checker):
         engine.emu_start(addr, addr + len(bin_code))
 
         eflag = engine.reg_read(UC_X86_REG_EFLAGS)
-        print("EFLAG: {}".format(eflag))
+        print(("EFLAG: {}".format(eflag)))
         return engine
 
     def print_reg(self):
@@ -163,14 +143,14 @@ class UC_Checker(Checker):
             for name in regs:
                 regid = getattr(unicorn.x86_const, "UC_X86_REG_{}".format(name.upper()))
                 regval = self.state.reg_read(regid)
-                print "{}:{}".format(name, regval)
+                print(("{}:{}".format(name, regval)))
 
     def print_flag(self):
         if verbose:
             eflagid = getattr(unicorn.x86_const, "UC_X86_REG_EFLAGS")
             eflag = self.state.reg_read(eflagid)
-            for name, site in eflags.iteritems():
-                print "{}:{}".format(name, (eflag & 1 << site) >> site)
+            for name, site in list(eflags.items()):
+                print(("{}:{}".format(name, (eflag & 1 << site) >> site)))
 
 
 class Angr_Checker(Checker):
@@ -205,15 +185,15 @@ class Angr_Checker(Checker):
 
             for name in regs:
                 regval = state.regs.__getattr__(name)
-                print "{}:{}".format(name, regval)
+                print(("{}:{}".format(name, regval)))
 
     def print_flag(self):
         if verbose:
             state = self.state
 
             eflag = state.regs.eflags
-            for name, site in eflags.iteritems():
-                print "{}:{}".format(name, eflag[site])
+            for name, site in list(eflags.items()):
+                print(("{}:{}".format(name, eflag[site])))
 
     def check_jcc(self, asm_code, jcc=None):
         # TODO: this does not work now!
@@ -233,9 +213,9 @@ class Angr_Checker(Checker):
         feasible = []
         infeasible = []
         if jcc:
-            pending = [jcc]
+            pending = {jcc}
         else:
-            pending = jcc_list
+            pending = jcc_s
 
         for jcc in pending:
             asm_code = 'target:; {} target; '.format(jcc)
@@ -257,11 +237,11 @@ class Angr_Checker(Checker):
             elif eip == addr + code_size:
                 infeasible.append(jcc)
             else:
-                print "impossible eip"
+                print("impossible eip")
                 raise Exception("impossible eip!")
 
-        print "feasible:\n{}".format('\t'.join(feasible))
-        print "infeasible:\n{}".format('\t'.join(infeasible))
+        print(("feasible:\n{}".format('\t'.join(feasible))))
+        print(("infeasible:\n{}".format('\t'.join(infeasible))))
 
 
 def excption_0():
@@ -272,8 +252,8 @@ def excption_0():
 
     encoding = pwn.asm(ins_code)
     count = len(encoding)
-    print str(encoding)
-    print count
+    print((str(encoding)))
+    print(count)
 
     add_options = {angr.options.NO_SYMBOLIC_SYSCALL_RESOLUTION,
                    angr.options.LAZY_SOLVES,
@@ -311,7 +291,7 @@ if __name__ == '__main__':
     asm = "mov eax,1 ; cmp eax,0xffffffff;"
     asm = "mov eax,1 ; cmp eax,1;"
     # asm = "mov eax,0x0 ; sub eax,1;"
-    print asm
+    print(asm)
 
     ucc = UC_Checker()
     ucc.check_jcc(asm)
