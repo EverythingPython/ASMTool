@@ -52,8 +52,8 @@ def gen_handler(type_name, action='store',nargs=None):
 type_map = {
     'int': gen_handler('int'),
     'list': gen_handler(None,nargs='+'),
-    't': gen_handler(None,'store_true'),
-    'f': gen_handler(None,'store_false'),
+    'true': gen_handler(None,'store_true'),
+    'false': gen_handler(None,'store_false'),
     'str': gen_handler('str'),
     'bool': gen_handler('bool')
 }
@@ -109,46 +109,20 @@ def process(cmd):
 
 
 def main():
+    print("* Usage:")
+    print("-short--long=type=default(help),")
+    print("-short--dest=type=default(help),")
+    print("-short--dest=type=default,")
+
     args = sys.argv
     if len(args) <= 1:
-        s='''
-        s-string=str(give string type)
-        '''
-        s='''
-        v-visit=t,
-        l-listen=t
-        '''
-        s='''
-        e-eidoo=int=1(use eidoo website),
-        u-update=int=0(update all),
-        d-delay=int=1(process with delay),
-        '''
-        s='''
-        F-split/splitor=str=' '(splitor),
-        p-format=str=''(print data format),
-        e-escape=t(include escape code),
-        v-verbose=t
-        '''
-        s='''
-        p-port=int=9001(port),
-        t-time=int=0(timer(s))
-        '''
-        s='''
-        s-setting=str="setting.json",
-        d-data=str="cv.json",
-        t-template=str="templates/default_html.mustache"
-        '''
-        s='''
-        k-key=str='arm',n-num=int=0
-        '''
         s="-s--sim=str='test',--key=int='heheh'"
-        # how to use
-        # s-split/split=str=' '(splitor)
-        # each means: short, long, dest, type, default, help
-        # many of them can be ignored
     else:
         s = args[1]
 
+    print('* Given:\n{}'.format(s))
+
+    print('* Output:')
     print('import argparse')
     print('parser = argparse.ArgumentParser()')
     process(s)
