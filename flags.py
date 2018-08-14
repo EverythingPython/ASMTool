@@ -8,15 +8,18 @@ import logging.handlers
 import logging
 
 logging.basicConfig(
-        level=logging.DEBUG,
-        format='%(levelname)s %(filename)s[line:%(lineno)d]  %(message)s',
-        # format='%(levelname)s %(asctime)s %(filename)s[line:%(lineno)d]  %(message)s',
-        datefmt='%a, %d %b %Y %H:%M:%S',
-        )
+    level=logging.DEBUG,
+    format='%(levelname)s %(filename)s[line:%(lineno)d]  %(message)s',
+    # format='%(levelname)s %(asctime)s %(filename)s[line:%(lineno)d]  %(message)s',
+    datefmt='%a, %d %b %Y %H:%M:%S',
+)
 
 logger = logging.getLogger('flags')
 logger.setLevel(logging.INFO)
 logging = logger
+
+
+# try to use a tree to store all flags, since some relations are related
 
 # target flag set
 CF = int(1 << 0)
@@ -71,19 +74,9 @@ UGE_RELATION = "UGE_RELATION"
 ULT_RELATION = "ULT_RELATION"
 ULE_RELATION = "ULE_RELATION"
 
-jcc_map={
-EQ_RELATION :{'z','e'},
-NE_RELATION :{'nz','ne'},
-SGT_RELATION :{'nz','ns','nf'},
-SGE_RELATION :{},
-SLT_RELATION :{},
-SLE_RELATION :{},
-UGT_RELATION :{},
-UGE_RELATION :{},
-ULT_RELATION :{},
-ULE_RELATION :{},
 
-}
+from collections import defaultdict
+jcc_map = defaultdict(lambda: set())
 
 # the relations depend on flags
 # both F set by or |
@@ -114,19 +107,50 @@ listReFlag = [
 
     (["cf"], CF, ULT_RELATION),
 
-    (["cf"], CF  , ULE_RELATION),
-    (['zf'], ZF  , ULE_RELATION),
+    (["cf"], CF, ULE_RELATION),
+    (['zf'], ZF, ULE_RELATION),
 ]
 
 mapReFlag = dict()
 
-
-for (need, val, name) in listReFlag:
-    mapReFlag[val] = name
-
+for (need, value, name) in listReFlag:
+    mapReFlag[value] = name
     # logging.debug item
-    logging.debug(need, name, "=", bin(val), "=", val)
+    logging.debug(need, name, "=", bin(value), "=", value)
 
+    jcc_map[name]
+
+
+# set the jcc info, never add negative e.g. jna
+for name in jcc_map:
+    jcc = set()
+
+    # get from name
+    t = name.split('_')[0]
+
+    if t.startswith('S'):
+        if 'G' in t:
+            jcc.add('jg')
+        if 'L' in t:
+            jcc.add('jl')
+    elif t.startswith('U'):
+        if 'G' in t:
+            jcc.add('ja')
+        if 'L' in t:
+            jcc.add('jb')
+
+    if 'NE' in t:
+        jcc.add('jne')
+    elif 'E' in t:
+        temp = set()
+        for i in jcc:
+            temp.add(i+'e')
+        jcc.add('je')
+        jcc.update(temp)
+
+    jcc_map[name] = jcc
+
+logging.debug(jcc_map)
 
 
 def getFlag(name):
@@ -143,17 +167,31 @@ def getMask(need):
     mask = 0
     for i in need:
         mask = mask | flagDict[i]
-
     return mask
+
 
 class FlagCheck():
     def __init__(self):
         self.flags = []
 
+    def getJcc(self, flag):
+        # get the target flag first, and check if it suits
+        res = set()
+        for (mask, target, name) in self.flags:
+
+            # mask flag and value
+            # if they are same , them it is
+            if (mask & flag) == target:
+                # print name,bin(val)
+                res.update(jcc_map[name])
+
+        logging.debug('flag {} = {} may mean:{}'.format(flag, bin(flag), res))
+        return res
+
     def getRelation(self, flag):
         # get the target flag first, and check if it suits
         res = set()
-        for (mask, target, name) in self.flags:           
+        for (mask, target, name) in self.flags:
 
             # mask flag and value
             # if they are same , them it is
@@ -163,8 +201,7 @@ class FlagCheck():
         logging.debug('flag {} = {} may mean:{}'.format(flag, bin(flag), res))
         return res
 
-
-    def isRelation(self,flag, name):
+    def isRelation(self, flag, name):
         res = self.getRelation(flag)
         logging.debug('flag {} = {} match:{}'.format(flag, bin(flag), res))
         if name in res:
@@ -188,18 +225,19 @@ def init():
     Flag = namedtuple('flag', ['mask', 'target', 'name'])
 
     flags = []
-    logging.info("Use mask with flag, if maskedflag is target, then it suit the relation")
-    logging.info("mask\ttarget\tname")
+    logging.info(
+        "Use mask with flag, if maskedflag is target, then it suit the relation")
+    logging.debug("mask\ttarget\tname")
     for (need, val, name) in listReFlag:
         mask = getMask(need)
         target = mask & val
-        logging.info("{}\t, {}\t, {}" .format (mask, target, name))
+        logging.debug("{}\t, {}\t, {}" .format(mask, target, name))
         # print "{%s,%s,%s}," %(bin(mask), bin(mask & val) , name)
         flags .append(Flag(mask, target, name))
-    logging.debug(pprint.pformat( flags))
+    logging.debug(pprint.pformat(flags))
 
     checker = FlagCheck()
-    checker.flags=flags
+    checker.flags = flags
     return checker
 
 

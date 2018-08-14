@@ -46,17 +46,15 @@ regs = [
 ]
 
 # place the jcc pair by pair
-jcc_s = [
+jcc_s = {
     'jz', 'jnz',  # 0, ==
     'ja', 'jb',  # uint
-
     'jg', 'jl',  # int
+    'je', 'jne' # jz
+
     'js', 'jns',
     'jc', 'jnc',  # carry, borrow
-
-    'je',  # jz
-
-]
+}
 
 
 class Checker:
@@ -114,15 +112,20 @@ class UC_Checker(Checker):
         eflagid = getattr(unicorn.x86_const, "UC_X86_REG_EFLAGS")
         eflag = self.state.reg_read(eflagid)
 
+
+
         import flags 
         checker = flags.init()
-        print(checker.getRelation(eflag))
 
-        # feasible = []
-        # infeasible = []
-          
-        # print("feasible:\n{}".format('\t'.join(feasible)))
-        # print("infeasible:\n{}".format('\t'.join(infeasible)))
+        feasible_relation = checker.getRelation(eflag)
+        feasible  = checker.getJcc(eflag)
+
+        infeasible = jcc_s.difference(feasible)
+
+        print("feasible relations:\n{}".format('\t'.join(feasible_relation)))  
+        print("feasible jcc:\n{}".format('\t'.join(feasible)))
+        print("some other feasible jcc:\nread the flag to know")
+        # print("infeasible jcc:\n{}".format('\t'.join(infeasible)))
 
     def run_bin(self, bin_code):
         engine = self.engine
