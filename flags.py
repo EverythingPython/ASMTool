@@ -1,6 +1,7 @@
 import sys
 import os
 
+from collections import defaultdict, namedtuple
 import pprint
 
 import logging.config
@@ -17,7 +18,6 @@ logging.basicConfig(
 logger = logging.getLogger('flags')
 logger.setLevel(logging.INFO)
 logging = logger
-
 
 # try to use a tree to store all flags, since some relations are related
 
@@ -62,155 +62,197 @@ rZF = 65535 ^ int(1 << 6)
 rSF = 65535 ^ int(1 << 7)
 rOF = 65535 ^ int(1 << 11)
 
+Condition = namedtuple('Condition', ['mask', 'target', 'flag'])
+
+
+class RelationNode(object):
+    mapping = {}
+
+    def __init__(self, name, jcc=None):
+        self.name = name
+        if jcc:
+            self.jcc = jcc
+        else:
+            self.jcc = set()
+
+        self.children = []
+        self.conds = []
+
+        # update info
+        self.generate_jcc()
+
+        # update class attr
+        self.mapping[name] = self
+
+    def __str__(self):
+        return self.name
+
+    def __repr__(self):
+        return self.name
+
+    @staticmethod
+    def get_mask(need):
+        # get the flag we need as mask
+        mask = 0
+        for i in need:
+            mask = mask | flagDict[i]
+        return mask
+
+    def generate_jcc(self):
+        # set the jcc info, never add negative e.g. jna
+        name = self.name
+        jcc = self.jcc
+
+        # get from name
+        t = name.split('_')[0]
+
+        if t.startswith('S'):
+            if 'G' in t:
+                jcc.add('jg')
+            if 'L' in t:
+                jcc.add('jl')
+        elif t.startswith('U'):
+            if 'G' in t:
+                jcc.add('ja')
+            if 'L' in t:
+                jcc.add('jb')
+
+        if 'NE' in t:
+            jcc.add('jne')
+        elif 'E' in t:
+            temp = set()
+            for i in jcc:
+                temp.add(i + 'e')
+            jcc.add('je')
+            jcc.update(temp)
+
+        logging.debug(jcc)
+
+    def feat(self, flag_value):
+        # Use mask with flag, if maskedflag is target, then it suit the relation
+        for cond in self.conds:
+            # mask flag and value
+            # if they are same , them it is
+            if (cond.mask & flag_value) == cond.target:
+                return True
+        return False
+
+    def add_jcc(self, *args):
+        self.jcc.update(args)
+
+    def add_child(self, *child):
+        self.children += child
+
+    def add_cond(self, flag, value):
+        mask = self.get_mask(flag)
+        target = mask & value
+        self.conds.append(Condition(mask, target, flag))
+        logging.debug("{}\t, {}\t, {}".format(mask, target, self.name))
+
+
 # Relations
-EQ_RELATION = "EQ_RELATION"
-NE_RELATION = "NE_RELATION"
-SGT_RELATION = "SGT_RELATION"
-SGE_RELATION = "SGE_RELATION"
-SLT_RELATION = "SLT_RELATION"
-SLE_RELATION = "SLE_RELATION"
-UGT_RELATION = "UGT_RELATION"
-UGE_RELATION = "UGE_RELATION"
-ULT_RELATION = "ULT_RELATION"
-ULE_RELATION = "ULE_RELATION"
+EQ_RELATION = RelationNode("EQ_RELATION")
+NE_RELATION = RelationNode("NE_RELATION")
+SGT_RELATION = RelationNode("SGT_RELATION")
+SGE_RELATION = RelationNode("SGE_RELATION")
+SLT_RELATION = RelationNode("SLT_RELATION")
+SLE_RELATION = RelationNode("SLE_RELATION")
+UGT_RELATION = RelationNode("UGT_RELATION")
+UGE_RELATION = RelationNode("UGE_RELATION")
+ULT_RELATION = RelationNode("ULT_RELATION")
+ULE_RELATION = RelationNode("ULE_RELATION")
 
-
-from collections import defaultdict
-jcc_map = defaultdict(lambda: set())
+# Dependency using children
+# = then must >= <= and so on
+EQ_RELATION.add_child(SGE_RELATION, SLE_RELATION,
+                      UGE_RELATION, ULE_RELATION)
+# != may no child
+NE_RELATION
+# > then must >=, vice versa
+SGT_RELATION.add_child(SGE_RELATION)
+SLT_RELATION.add_child(SLE_RELATION)
+UGT_RELATION.add_child(UGE_RELATION)
+ULT_RELATION.add_child(ULE_RELATION)
 
 # the relations depend on flags
 # both F set by or |
 # both rF reset by and &
 # rF with F, we can ignore F for rF must include other F
 # others just do logically
-listReFlag = [
-    (["zf"], ZF, EQ_RELATION),
+# we may lost some of them which can get by Dependency
+EQ_RELATION.add_cond(["zf"], ZF, )
 
-    (["zf"], rZF, NE_RELATION),
+NE_RELATION.add_cond(["zf"], rZF, )
 
-    # rZF OF SF, but rZF include others
-    (["zf"], rZF, SGT_RELATION),
-    (["zf", "sf", "of"], rZF & rSF & rOF, SGT_RELATION),
+# rZF OF SF, but rZF include others
+SGT_RELATION.add_cond(["zf"], rZF, )
+SGT_RELATION.add_cond(["zf", "sf", "of"], rZF & rSF & rOF, )
 
-    (["sf", "of"], SF & OF, SGE_RELATION),
-    (["sf", "of"], rSF & rOF, SGE_RELATION),
+SGE_RELATION.add_cond(["sf", "of"], SF & OF, )
+SGE_RELATION.add_cond(["sf", "of"], rSF & rOF, )
 
-    (["sf", "of"], SF & rOF, SLT_RELATION),
-    (["sf", "of"], rSF & OF, SLT_RELATION),
+SLT_RELATION.add_cond(["sf", "of"], SF & rOF, )
+SLT_RELATION.add_cond(["sf", "of"], rSF & OF, )
 
-    (["zf"], ZF, SLE_RELATION),
-    (["sf", "of"], SF & rOF, SLE_RELATION),
-    (["sf", "of"], rSF & OF, SLE_RELATION),
+SLE_RELATION.add_cond(["zf"], ZF, )
+SLE_RELATION.add_cond(["sf", "of"], SF & rOF, )
+SLE_RELATION.add_cond(["sf", "of"], rSF & OF, )
 
-    (["cf", "zf"], rCF & rZF, UGT_RELATION),
-    (["cf"], rCF, UGE_RELATION),
+UGT_RELATION.add_cond(["cf", "zf"], rCF & rZF, )
 
-    (["cf"], CF, ULT_RELATION),
+UGE_RELATION.add_cond(["cf"], rCF, )
 
-    (["cf"], CF, ULE_RELATION),
-    (['zf'], ZF, ULE_RELATION),
-]
+ULT_RELATION.add_cond(["cf"], CF, )
 
-mapReFlag = dict()
-
-for (need, value, name) in listReFlag:
-    mapReFlag[value] = name
-    # logging.debug item
-    logging.debug(need, name, "=", bin(value), "=", value)
-
-    jcc_map[name]
-
-
-# set the jcc info, never add negative e.g. jna
-for name in jcc_map:
-    jcc = set()
-
-    # get from name
-    t = name.split('_')[0]
-
-    if t.startswith('S'):
-        if 'G' in t:
-            jcc.add('jg')
-        if 'L' in t:
-            jcc.add('jl')
-    elif t.startswith('U'):
-        if 'G' in t:
-            jcc.add('ja')
-        if 'L' in t:
-            jcc.add('jb')
-
-    if 'NE' in t:
-        jcc.add('jne')
-    elif 'E' in t:
-        temp = set()
-        for i in jcc:
-            temp.add(i+'e')
-        jcc.add('je')
-        jcc.update(temp)
-
-    jcc_map[name] = jcc
-
-logging.debug(jcc_map)
-
-
-def getFlag(name):
-    return flag[name]
-
-
-def getTargetFlag(flag):
-    res = flag & targetFlag
-    return res
-
-
-def getMask(need):
-    # get the flag we need as mask
-    mask = 0
-    for i in need:
-        mask = mask | flagDict[i]
-    return mask
+ULE_RELATION.add_cond(["cf"], CF, )
+ULE_RELATION.add_cond(['zf'], ZF, )
 
 
 class FlagCheck():
     def __init__(self):
         self.flags = []
 
-    def getJcc(self, flag):
-        # get the target flag first, and check if it suits
+    def get_feasible(self, flag_value):
         res = set()
-        for (mask, target, name) in self.flags:
 
-            # mask flag and value
-            # if they are same , them it is
-            if (mask & flag) == target:
-                # print name,bin(val)
-                res.update(jcc_map[name])
+        for relation in RelationNode.mapping.itervalues():
+            if relation.feat(flag_value):
+                res.add(relation)
+        children = [r.children for r in res]
+        for c in children:
+            res.update(c)
 
-        logging.debug('flag {} = {} may mean:{}'.format(flag, bin(flag), res))
         return res
 
-    def getRelation(self, flag):
+    def getJcc(self, flag_value):
         # get the target flag first, and check if it suits
+        feasible = self.get_feasible(flag_value)
         res = set()
-        for (mask, target, name) in self.flags:
+        for r in feasible:
+            res.update(r.jcc)
 
-            # mask flag and value
-            # if they are same , them it is
-            if (mask & flag) == target:
-                # print name,bin(val)
-                res.add(name)
-        logging.debug('flag {} = {} may mean:{}'.format(flag, bin(flag), res))
+        logging.debug('flag {} = {} may mean:{}'.format(flag_value, bin(flag_value), res))
         return res
 
-    def isRelation(self, flag, name):
-        res = self.getRelation(flag)
-        logging.debug('flag {} = {} match:{}'.format(flag, bin(flag), res))
-        if name in res:
-            return True
-        else:
-            return False
+    def getRelation(self, flag_value):
+        # get the target flag first, and check if it suits
+        feasible = self.get_feasible(flag_value)
+        res = [r.name for r in feasible]
+        logging.debug('flag {} = {} may mean:{}'.format(flag_value, bin(flag_value), res))
+        return res
+
+    def isRelation(self, flag, relation):
+        feasible = self.get_feasible(flag)
+        res = False
+
+        if relation in feasible:
+            res = True
+            logging.debug('flag {} = {} match:{}'.format(flag, bin(flag), relation))
+        return res
 
 
-def test_relation(checker):
+def test_relation():
+    checker = FlagCheck()
     print('Test report as bellow:')
     print(checker.getRelation(SF | OF))
     # print getRelation(CF | getFlag("sf")|  getFlag("of"))
@@ -219,31 +261,8 @@ def test_relation(checker):
     print(checker.isRelation(ZF | SF | OF, UGE_RELATION))
 
 
-def init():
-    from collections import namedtuple
-
-    Flag = namedtuple('flag', ['mask', 'target', 'name'])
-
-    flags = []
-    logging.info(
-        "Use mask with flag, if maskedflag is target, then it suit the relation")
-    logging.debug("mask\ttarget\tname")
-    for (need, val, name) in listReFlag:
-        mask = getMask(need)
-        target = mask & val
-        logging.debug("{}\t, {}\t, {}" .format(mask, target, name))
-        # print "{%s,%s,%s}," %(bin(mask), bin(mask & val) , name)
-        flags .append(Flag(mask, target, name))
-    logging.debug(pprint.pformat(flags))
-
-    checker = FlagCheck()
-    checker.flags = flags
-    return checker
-
-
 def main():
-    checker = init()
-    test_relation(checker)
+    test_relation()
 
 
 if __name__ == '__main__':
