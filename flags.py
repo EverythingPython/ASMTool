@@ -44,7 +44,7 @@ logging.debug(flagDict)
 for i in flagDict:
     targetFlag = targetFlag | flagDict[i]
     r = 65535 - flagDict[i]
-    logging.debug(i, "=", bin(flagDict[i]), " and reverse=", r, "=", bin(r))
+    # logging.debug(i, "=", bin(flagDict[i]), " and reverse=", r, "=", bin(r))
 
 # WARNING: positive flag init as 0xff..ff, just a representation
 CF = 65535 | int(1 << 0)
@@ -74,7 +74,7 @@ class RelationNode(object):
             self.jcc = jcc
         else:
             self.jcc = set()
-
+        self.no_jcc = set()
         self.children = []
         self.conds = []
 
@@ -126,7 +126,11 @@ class RelationNode(object):
             jcc.add('je')
             jcc.update(temp)
 
-        logging.debug(jcc)
+        if 'jne' in jcc:
+            # some of them should be removed
+            self.no_jcc.update(['je'])
+
+        logging.debug('relation {} means {}'.format(self.name, str(jcc)))
 
     def feat(self, flag_value):
         # Use mask with flag, if maskedflag is target, then it suit the relation
@@ -214,34 +218,38 @@ class FlagCheck():
 
     def get_feasible(self, flag_value):
         res = set()
-
-        for relation in RelationNode.mapping.itervalues():
+        for relation in RelationNode.mapping.values():
             if relation.feat(flag_value):
                 res.add(relation)
+
         children = [r.children for r in res]
         for c in children:
             res.update(c)
 
         return res
 
-    def getJcc(self, flag_value):
+    def get_jcc(self, flag_value):
         # get the target flag first, and check if it suits
         feasible = self.get_feasible(flag_value)
         res = set()
         for r in feasible:
             res.update(r.jcc)
 
+        # special case: for jne, must no je
+        if 'jne' in res:
+            res.remove('je')
+
         logging.debug('flag {} = {} may mean:{}'.format(flag_value, bin(flag_value), res))
         return res
 
-    def getRelation(self, flag_value):
+    def get_relation(self, flag_value):
         # get the target flag first, and check if it suits
         feasible = self.get_feasible(flag_value)
         res = [r.name for r in feasible]
         logging.debug('flag {} = {} may mean:{}'.format(flag_value, bin(flag_value), res))
         return res
 
-    def isRelation(self, flag, relation):
+    def is_relation(self, flag, relation):
         feasible = self.get_feasible(flag)
         res = False
 
@@ -254,11 +262,11 @@ class FlagCheck():
 def test_relation():
     checker = FlagCheck()
     print('Test report as bellow:')
-    print(checker.getRelation(SF | OF))
+    print(checker.get_relation(SF | OF))
     # print getRelation(CF | getFlag("sf")|  getFlag("of"))
-    print(checker.isRelation(518, SGE_RELATION))
-    print(checker.getRelation(ZF | SF | OF))
-    print(checker.isRelation(ZF | SF | OF, UGE_RELATION))
+    print(checker.is_relation(518, SGE_RELATION))
+    print(checker.get_relation(ZF | SF | OF))
+    print(checker.is_relation(ZF | SF | OF, UGE_RELATION))
 
 
 def main():
