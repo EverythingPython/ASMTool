@@ -1,15 +1,15 @@
 # coding=utf-8
 
+import flags
+from flags import eflags
+
 import angr
 import pyvex
 from angr import SimState
-
 import unicorn
 from unicorn import *
 from unicorn.x86_const import *
-
 import pwn
-
 import archinfo
 
 import logging.config
@@ -29,15 +29,6 @@ logging.config.dictConfig(config)
 
 verbose = 1
 
-# bit offset of each flag
-eflags = {
-    'SF': 7,
-    'ZF': 6,
-    'CF': 0,
-    'OF': 11,
-    'DF': 10,
-
-}
 regs = [
     'eax', 'ebx', 'ecx', 'edx',
     'esp', 'ebp', 'esi', 'edi',
@@ -50,9 +41,9 @@ jcc_s = {
     'jz', 'jnz',  # 0, ==
     'ja', 'jb',  # uint
     'jg', 'jl',  # int
-    'je', 'jne' # jz
+    'je', 'jne'  # jz
 
-    'js', 'jns',
+          'js', 'jns',
     'jc', 'jnc',  # carry, borrow
 }
 
@@ -112,19 +103,15 @@ class UC_Checker(Checker):
         eflagid = getattr(unicorn.x86_const, "UC_X86_REG_EFLAGS")
         eflag = self.state.reg_read(eflagid)
 
-
-
-        import flags 
-        checker = flags.init()
-
-        feasible_relation = checker.getRelation(eflag)
-        feasible  = checker.getJcc(eflag)
+        checker = flags.FlagCheck()
+        feasible_relation = checker.get_relation(eflag)
+        feasible = checker.get_jcc(eflag)
 
         infeasible = jcc_s.difference(feasible)
 
-        print("feasible relations:\n{}".format('\t'.join(feasible_relation)))  
-        print("feasible jcc:\n{}".format('\t'.join(feasible)))
-        print("some other feasible jcc:\nread the flag to know")
+        print("feasible relations: {}".format('\t'.join(feasible_relation)))
+        print("feasible jcc: {}".format('\t'.join(feasible)))
+        print("some other feasible jcc: read the flag to know")
         # print("infeasible jcc:\n{}".format('\t'.join(infeasible)))
 
     def run_bin(self, bin_code):
@@ -290,9 +277,9 @@ def excption_0():
     engine.process(state, irsb, inline=True)
 
 
-if __name__ == '__main__':
+def testcase():
     asm = "mov eax,1 ; cmp eax,0xffffffff;"
-    asm = "mov eax,1 ; cmp eax,1;"
+    # asm = "mov eax,1 ; cmp eax,1;"
     # asm = "mov eax,0x0 ; sub eax,1;"
     print(asm)
 
@@ -305,3 +292,11 @@ if __name__ == '__main__':
     # check_jcc(state, 'ja')
     # check_jcc(state, 'jg')
     # check_jcc(state,)
+
+
+def main():
+    testcase()
+
+
+if __name__ == '__main__':
+    main()

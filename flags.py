@@ -21,46 +21,50 @@ logging = logger
 
 # try to use a tree to store all flags, since some relations are related
 
-# target flag set
-CF = int(1 << 0)
-PF = int(1 << 2)
-AF = int(1 << 4)
-ZF = int(1 << 6)
-SF = int(1 << 7)
-OF = int(1 << 11)
+# bit offset of each flag
+eflags = {
+    'SF': 7,
+    'ZF': 6,
+    'CF': 0,
+    'OF': 11,
+    'DF': 10,
+    'PF': 2,
+    'AF': 4
+}
 
 # 32...0
 flagDict = dict()
 
-flagDict["cf"] = CF
-# flagDict["pf"]=PF
-# flagDict["af"]=AF
-flagDict["zf"] = ZF
-flagDict["sf"] = SF
-flagDict["of"] = OF
+for flag in eflags:
+    offset = eflags[flag]
 
-targetFlag = 0
-logging.debug(flagDict)
-for i in flagDict:
-    targetFlag = targetFlag | flagDict[i]
-    r = 65535 - flagDict[i]
+    # target flag set
+    bit = int(1 << offset)
+    flip = 65535 - bit
+
+    flagDict[flag] = bit
     # logging.debug(i, "=", bin(flagDict[i]), " and reverse=", r, "=", bin(r))
 
-# WARNING: positive flag init as 0xff..ff, just a representation
-CF = 65535 | int(1 << 0)
-PF = 65535 | int(1 << 2)
-AF = 65535 | int(1 << 4)
-ZF = 65535 | int(1 << 6)
-SF = 65535 | int(1 << 7)
-OF = 65535 | int(1 << 11)
+    # both F_1 means flag set
+    # both F_0 means flag reset
 
-# target flag reset no matter what others
-rCF = 65535 ^ int(1 << 0)
-rPF = 65535 ^ int(1 << 2)
-rAF = 65535 ^ int(1 << 4)
-rZF = 65535 ^ int(1 << 6)
-rSF = 65535 ^ int(1 << 7)
-rOF = 65535 ^ int(1 << 11)
+    # WARNING: positive flag init as 0xff..ff, just a representation
+    globals()['{}_1'.format(flag)] = 65535 | bit
+    # CF = 65535 | int(1 << 0)
+    # PF = 65535 | int(1 << 2)
+    # AF = 65535 | int(1 << 4)
+    # ZF = 65535 | int(1 << 6)
+    # SF = 65535 | int(1 << 7)
+    # OF = 65535 | int(1 << 11)
+
+    # target flag reset no matter what others
+    globals()['{}_0'.format(flag)] = 65535 ^ bit
+    # rCF = 65535 ^ int(1 << 0)
+    # rPF = 65535 ^ int(1 << 2)
+    # rAF = 65535 ^ int(1 << 4)
+    # rZF = 65535 ^ int(1 << 6)
+    # rSF = 65535 ^ int(1 << 7)
+    # rOF = 65535 ^ int(1 << 11)
 
 Condition = namedtuple('Condition', ['mask', 'target', 'flag'])
 
@@ -95,8 +99,16 @@ class RelationNode(object):
         # get the flag we need as mask
         mask = 0
         for i in need:
-            mask = mask | flagDict[i]
+            flag = i.split('_')[0]
+            mask = mask | flagDict[flag]
         return mask
+
+    @staticmethod
+    def get_value(need):
+        value = 65535
+        for flag in need:
+            value = globals()[flag] & value
+        return value
 
     def generate_jcc(self):
         # set the jcc info, never add negative e.g. jna
@@ -147,8 +159,11 @@ class RelationNode(object):
     def add_child(self, *child):
         self.children += child
 
-    def add_cond(self, flag, value):
+    def add_cond(self, flag):
+
         mask = self.get_mask(flag)
+        value = self.get_value(flag)
+
         target = mask & value
         self.conds.append(Condition(mask, target, flag))
         logging.debug("{}\t, {}\t, {}".format(mask, target, self.name))
@@ -172,6 +187,7 @@ EQ_RELATION.add_child(SGE_RELATION, SLE_RELATION,
                       UGE_RELATION, ULE_RELATION)
 # != may no child
 NE_RELATION
+
 # > then must >=, vice versa
 SGT_RELATION.add_child(SGE_RELATION)
 SLT_RELATION.add_child(SLE_RELATION)
@@ -179,37 +195,38 @@ UGT_RELATION.add_child(UGE_RELATION)
 ULT_RELATION.add_child(ULE_RELATION)
 
 # the relations depend on flags
-# both F set by or |
-# both rF reset by and &
-# rF with F, we can ignore F for rF must include other F
-# others just do logically
-# we may lost some of them which can get by Dependency
-EQ_RELATION.add_cond(["zf"], ZF, )
+# the list of the flag_? means the relation requires the flag value
+# we may lost some of them here which can get by Dependency later
+EQ_RELATION.add_cond(["ZF_1"])
 
-NE_RELATION.add_cond(["zf"], rZF, )
+NE_RELATION.add_cond(["ZF_0"])
 
-# rZF OF SF, but rZF include others
-SGT_RELATION.add_cond(["zf"], rZF, )
-SGT_RELATION.add_cond(["zf", "sf", "of"], rZF & rSF & rOF, )
+# ZF_0 OF_1 SF_1, but ZF_0 include others
+SGT_RELATION.add_cond(["ZF_0", ])
+SGT_RELATION.add_cond(["ZF_0", "SF_0", "OF_0", ])
 
-SGE_RELATION.add_cond(["sf", "of"], SF & OF, )
-SGE_RELATION.add_cond(["sf", "of"], rSF & rOF, )
+# sf ^ of == 0
+SGE_RELATION.add_cond(["SF_1", "OF_1", ])
+SGE_RELATION.add_cond(["SF_0", "OF_0", ])
 
-SLT_RELATION.add_cond(["sf", "of"], SF & rOF, )
-SLT_RELATION.add_cond(["sf", "of"], rSF & OF, )
+# sf ^ of ==1
+SLT_RELATION.add_cond(["SF_1", "OF_0", ])
+SLT_RELATION.add_cond(["SF_0", "OF_1", ])
 
-SLE_RELATION.add_cond(["zf"], ZF, )
-SLE_RELATION.add_cond(["sf", "of"], SF & rOF, )
-SLE_RELATION.add_cond(["sf", "of"], rSF & OF, )
+# zf || sf ^ of ==1
+SLE_RELATION.add_cond(["ZF_1", ])
+SLE_RELATION.add_cond(["SF_1", "OF_0", ])
+SLE_RELATION.add_cond(["SF_0", "OF_1", ])
 
-UGT_RELATION.add_cond(["cf", "zf"], rCF & rZF, )
+# !cf && !zf
+UGT_RELATION.add_cond(["CF_0", "ZF_0", ])
 
-UGE_RELATION.add_cond(["cf"], rCF, )
+UGE_RELATION.add_cond(["CF_0", ])
 
-ULT_RELATION.add_cond(["cf"], CF, )
+ULT_RELATION.add_cond(["CF_1", ])
 
-ULE_RELATION.add_cond(["cf"], CF, )
-ULE_RELATION.add_cond(['zf'], ZF, )
+ULE_RELATION.add_cond(["CF_1", ])
+ULE_RELATION.add_cond(["ZF_1", ])
 
 
 class FlagCheck():
@@ -262,11 +279,11 @@ class FlagCheck():
 def test_relation():
     checker = FlagCheck()
     print('Test report as bellow:')
-    print(checker.get_relation(SF | OF))
-    # print getRelation(CF | getFlag("sf")|  getFlag("of"))
+    print(checker.get_relation(RelationNode.get_value(["SF_1", "OF_1"])))
+    # print getRelation(CF_1 | getFlag("sf")|  getFlag("of"))
     print(checker.is_relation(518, SGE_RELATION))
-    print(checker.get_relation(ZF | SF | OF))
-    print(checker.is_relation(ZF | SF | OF, UGE_RELATION))
+    print(checker.get_relation(RelationNode.get_value(['ZF_1', 'SF_1', 'OF_1'])))
+    print(checker.is_relation(RelationNode.get_value(['ZF_1', 'SF_1', 'OF_1']), UGE_RELATION))
 
 
 def main():
