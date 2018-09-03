@@ -14,7 +14,7 @@ parser.add_argument("-p", "--format", help="print data in format, default use {{
 parser.add_argument("-d", "--dolar", help="change id flag to $, e.g. $1",
                     action="store_true", dest="dolar")
 parser.add_argument("-c", "--percent", help="change id flag to %%, e.g. %%1",
-                    action="store_true", dest="percent")                    
+                    action="store_true", dest="percent")
 parser.add_argument("-e", "--escape", help="include escape code",
                     action="store_true", dest="escape")
 parser.add_argument("-v", "--verbose", help="",
@@ -25,41 +25,45 @@ parser.add_argument("value", nargs='*')
 args = parser.parse_args()
 print(args, file=sys.stderr)
 
+
 def do_print(formats, items, line):
     if args.verbose:
         print("formats:{}".format(formats))
         print('items:{}'.format(items))
         print('line:{}'.format(line))
-    
+
     n = len(items)
     s = formats
 
-    # 0 as whole line
     pattern = list(items)
+    # 0 as whole string in the line
     pattern.insert(0, line)
 
     for i in range(n):
         # replace id
-        # positive from 0 to n-1
-        # negative to positive
+        # 0 is special for whole string
+        # positive from 1 to n (total n patterns)
+        # negative to positive, -(i+1) means n - i, e.g. -1 means n
 
         if args.dolar:
             s = s.replace('${}'.format(i), '{{{}}}'.format(i))
-            s = s.replace('${}'.format(-(i + 1)),'{{{}}}'.format(n - 1 - i))
+            s = s.replace('${}'.format(-(i + 1)), '{{{}}}'.format(n - i))
         elif args.percent:
             s = s.replace('%{}'.format(i), '{{{}}}'.format(i))
-            s = s.replace('%{}'.format(-(i + 1)), '{{{}}}'.format(n - 1 - i))
+            s = s.replace('%{}'.format(-(i + 1)), '{{{}}}'.format(n - i))
         else:
-            #s = s.replace('{{{}'.format((i + 1)), '{{{}'.format(i))
-            s = s.replace('{{{}'.format(-(i + 1)), '{{{}'.format(n - 1 - i))
+            # s = s.replace('{{{}'.format((i + 1)), '{{{}'.format(i))
+            s = s.replace('{{{}'.format(-(i + 1)), '{{{}'.format(n - i))
+
+    # do format
+    res = s.format(*pattern)
 
     if args.verbose:
-        print("res:{}".format(s))
+        print("format:{}".format(s))
         print("pattern:{}".format(pattern))
-    
-    # do format    
-    s = s.format(*pattern)
-    return s
+        print("res:{}".format(res))
+
+    return res
 
 
 def process(line):
