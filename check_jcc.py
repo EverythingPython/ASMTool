@@ -41,9 +41,9 @@ jcc_s = {
     'jz', 'jnz',  # 0, ==
     'ja', 'jb',  # uint
     'jg', 'jl',  # int
-    'je', 'jne'  # jz
+    'je', 'jne',  # jz
 
-          'js', 'jns',
+    'js', 'jns',
     'jc', 'jnc',  # carry, borrow
 }
 
