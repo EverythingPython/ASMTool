@@ -1,7 +1,7 @@
-#!/usr/bin/env python  
+#!/usr/bin/env python3
 import sys
 import argparse
-
+from string import ascii_letters
 
 def may_hex(item):
     for i in 'abcdef':
@@ -26,6 +26,28 @@ def process_int(item):
 
     return n
 
+def process_ip(s:str):
+    try:
+        h = None
+        try:
+            h = int(s,16)
+        except:
+            pass
+        try:
+            h = int(s)
+        except:
+            pass
+        if h:
+            res = []
+            for i in range(6):
+                t = h & 255
+                h >>= 8
+                res.insert(0,t)
+            return '.'.join([str(i) for i in res])
+    except:
+        pass
+    return None
+
 
 def process_str(s):
     upper = s.upper()
@@ -41,9 +63,10 @@ def print_int(n):
     print("hex:\t{}".format(hex(n)))
     print("dec:\t{}".format(n))
     print("ascii:\t{}".format(chr(n) if 0 <= n <= 255 else 'char overflow'))
-
+    print("ip:\t{}".format(process_ip(n)))
 
 def print_str(n):
+    print("int:\t{}".format(ord(n)))
     print("hex:\t{}".format(n.encode('hex')))
     hexstr = [hex(ord(i)) for i in n]
     print("hex:\t{}".format(hexstr))
@@ -70,12 +93,13 @@ def main():
     print(args)
 
     # only accept one arg
+    value = args.value
     if args.string:
-        for item in args.value:
+        for item in value:
             n = process_str(item)
             print_str(n)
     else:
-        for item in args.value:
+        for item in value:
             # item = ''.join(args[1:])
             n = process_int(item)
             print_int(n)

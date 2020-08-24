@@ -1,31 +1,39 @@
 # coding=utf-8
+import sys
+import logging
 
 import flags
 from flags import eflags
 
-import angr
 import pyvex
-from angr import SimState
+import angr
+from angr import SimState, SimEngineVEX
+
 import unicorn
-from unicorn import *
-from unicorn.x86_const import *
+from unicorn import Uc
+
 import pwn
 import archinfo
+from abc import ABCMeta, abstractmethod
 
-import logging.config
-import logging.handlers
-import logging
+def get_logger(name):
+    logging.basicConfig(
+        level=logging.INFO,
+        # format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
+        format='%(asctime)s %(filename)s[%(lineno)d] %(levelname)s %(message)s',
+        datefmt='%Y-%d-%m %H:%M:%S',
+        # filename='parser_result.log',
+        # filemode='w'
+    )
+    logging.StreamHandler(sys.stdout)
 
-config = {
-    "version": 1,
-    "disable_existing_loggers": True,
-    "root": {
-        "level": "WARNING",
-        "propagate": "no",
-        "handlers": []
-    }
-}
-logging.config.dictConfig(config)
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.DEBUG)
+    return logger
+
+
+logger = get_logger('check_jcc')
+
 
 verbose = 1
 
@@ -49,12 +57,13 @@ jcc_s = {
 
 
 class Checker:
-    def __init__(self):
-        self.state = None
+    __metaclass__ = ABCMeta
 
+    @abstractmethod
     def print_reg(self):
         raise NotImplementedError
 
+    @abstractmethod
     def print_flag(self):
         raise NotImplementedError
 
@@ -63,9 +72,11 @@ class Checker:
             self.print_reg()
             self.print_flag()
 
-    def check_jcc(self):
+    @abstractmethod
+    def check_jcc(self, *args):
         raise NotImplementedError
 
+    @abstractmethod
     def run_bin(self, bin_code):
         raise NotImplementedError
 
@@ -79,33 +90,30 @@ class Checker:
         return pwn.asm(asm_code)
 
 
-class UC_Checker(Checker):
+class UcChecker(Checker):
     def __init__(self):
         self.state = None
-        self.engine = Uc(UC_ARCH_X86, UC_MODE_32)
+        self.engine = Uc(unicorn.UC_ARCH_X86, unicorn.UC_MODE_32)
 
     def check_jcc(self, asm_code, jcc=None):
-        # TODO: this does not work now!
         """
+        # TODO: this does not work now!
 
-        :param state:
+        :param asm_code:
         :param jcc:
         :return:
         """
 
         self.state = self.run_asm(asm_code)
 
-        state = self.state
-        engine = self.engine
-
         self.print_ctx()
 
-        eflagid = getattr(unicorn.x86_const, "UC_X86_REG_EFLAGS")
-        eflag = self.state.reg_read(eflagid)
+        eflag = getattr(unicorn.x86_const, "UC_X86_REG_EFLAGS")
+        eflag_val = self.state.reg_read(eflag)
 
         checker = flags.FlagCheck()
-        feasible_relation = checker.get_relation(eflag)
-        feasible = checker.get_jcc(eflag)
+        feasible_relation = checker.get_relation(eflag_val)
+        feasible = checker.get_jcc(eflag_val)
 
         infeasible = jcc_s.difference(feasible)
 
@@ -124,29 +132,30 @@ class UC_Checker(Checker):
 
         engine.emu_start(addr, addr + len(bin_code))
 
-        eflag = engine.reg_read(UC_X86_REG_EFLAGS)
-        print(("EFLAG: {}".format(eflag)))
+        eflag = engine.reg_read(unicorn.x86_const.UC_X86_REG_EFLAGS)
+        print("EFLAG: {}".format(eflag))
         return engine
 
     def print_reg(self):
         if verbose:
             for name in regs:
-                regid = getattr(unicorn.x86_const, "UC_X86_REG_{}".format(name.upper()))
+                regid = getattr(unicorn.x86_const,
+                                "UC_X86_REG_{}".format(name.upper()))
                 regval = self.state.reg_read(regid)
-                print(("{}:{}".format(name, regval)))
+                print("{}:{}".format(name, regval))
 
     def print_flag(self):
         if verbose:
             eflagid = getattr(unicorn.x86_const, "UC_X86_REG_EFLAGS")
             eflag = self.state.reg_read(eflagid)
             for name, site in list(eflags.items()):
-                print(("{}:{}".format(name, (eflag & 1 << site) >> site)))
+                print("{}:{}".format(name, (eflag & 1 << site) >> site))
 
 
-class Angr_Checker(Checker):
+class AngrChecker(Checker):
 
     def __init__(self):
-        self.engine = angr.SimEngineVEX()
+        self.engine = SimEngineVEX()
 
         self.add_options = {
             angr.options.INITIALIZE_ZERO_REGISTERS,
@@ -158,7 +167,8 @@ class Angr_Checker(Checker):
         add_options = self.add_options
         engine = self.engine
 
-        irsb = pyvex.IRSB(bin_code, 0x100000, archinfo.ArchX86(), len(bin_code))
+        irsb = pyvex.IRSB(bin_code, 0x100000,
+                          archinfo.ArchX86(), len(bin_code))
         if verbose:
             irsb.pp()
 
@@ -234,7 +244,7 @@ class Angr_Checker(Checker):
         print(("infeasible:\n{}".format('\t'.join(infeasible))))
 
 
-def excption_0():
+def excption0():
     import claripy
 
     ins_code = "mov eax,-1 ; test eax,eax"
@@ -242,7 +252,7 @@ def excption_0():
 
     encoding = pwn.asm(ins_code)
     count = len(encoding)
-    print((str(encoding)))
+    print(str(encoding))
     print(count)
 
     add_options = {angr.options.NO_SYMBOLIC_SYSCALL_RESOLUTION,
@@ -283,7 +293,7 @@ def testcase():
     # asm = "mov eax,0x0 ; sub eax,1;"
     print(asm)
 
-    ucc = UC_Checker()
+    ucc = UcChecker()
     ucc.check_jcc(asm)
 
     # ac = Angr_Checker()
@@ -295,6 +305,7 @@ def testcase():
 
 
 def main():
+    # test = Checker()
     testcase()
 
 

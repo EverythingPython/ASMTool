@@ -80,7 +80,7 @@ class RelationNode(object):
             self.jcc = set()
         self.no_jcc = set()
         self.children = []
-        self.conds = []
+        self.conditions = []
 
         # update info
         self.generate_jcc()
@@ -115,9 +115,8 @@ class RelationNode(object):
         name = self.name
         jcc = self.jcc
 
-        # get from name
+        # get from name, get others from dependency
         t = name.split('_')[0]
-
         if t.startswith('S'):
             if 'G' in t:
                 jcc.add('jg')
@@ -146,7 +145,7 @@ class RelationNode(object):
 
     def feat(self, flag_value):
         # Use mask with flag, if maskedflag is target, then it suit the relation
-        for cond in self.conds:
+        for cond in self.conditions:
             # mask flag and value
             # if they are same , them it is
             if (cond.mask & flag_value) == cond.target:
@@ -165,8 +164,55 @@ class RelationNode(object):
         value = self.get_value(flag)
 
         target = mask & value
-        self.conds.append(Condition(mask, target, flag))
+        self.conditions.append(Condition(mask, target, flag))
         logging.debug("{}\t, {}\t, {}".format(mask, target, self.name))
+
+
+class FlagCheck():
+    def __init__(self):
+        self.flags = []
+
+    def get_feasible(self, flag_value):
+        res = set()
+        for relation in RelationNode.mapping.values():
+            if relation.feat(flag_value):
+                res.add(relation)
+
+        children = [r.children for r in res]
+        for c in children:
+            res.update(c)
+
+        return res
+
+    def get_jcc(self, flag_value):
+        # get the target flag first, and check if it suits
+        feasible = self.get_feasible(flag_value)
+        res = set()
+        for r in feasible:
+            res.update(r.jcc)
+
+        # special case: for jne, must no je
+        if 'jne' in res:
+            res.remove('je')
+
+        logging.debug('flag {} = {} may mean:{}'.format(flag_value, bin(flag_value), res))
+        return res
+
+    def get_relation(self, flag_value):
+        # get the target flag first, and check if it suits
+        feasible = self.get_feasible(flag_value)
+        res = [r.name for r in feasible]
+        logging.debug('flag {} = {} may mean:{}'.format(flag_value, bin(flag_value), res))
+        return res
+
+    def is_relation(self, flag, relation):
+        feasible = self.get_feasible(flag)
+        res = False
+
+        if relation in feasible:
+            res = True
+            logging.debug('flag {} = {} match:{}'.format(flag, bin(flag), relation))
+        return res
 
 
 # Relations
@@ -227,53 +273,6 @@ ULT_RELATION.add_cond(["CF_1", ])
 
 ULE_RELATION.add_cond(["CF_1", ])
 ULE_RELATION.add_cond(["ZF_1", ])
-
-
-class FlagCheck():
-    def __init__(self):
-        self.flags = []
-
-    def get_feasible(self, flag_value):
-        res = set()
-        for relation in RelationNode.mapping.values():
-            if relation.feat(flag_value):
-                res.add(relation)
-
-        children = [r.children for r in res]
-        for c in children:
-            res.update(c)
-
-        return res
-
-    def get_jcc(self, flag_value):
-        # get the target flag first, and check if it suits
-        feasible = self.get_feasible(flag_value)
-        res = set()
-        for r in feasible:
-            res.update(r.jcc)
-
-        # special case: for jne, must no je
-        if 'jne' in res:
-            res.remove('je')
-
-        logging.debug('flag {} = {} may mean:{}'.format(flag_value, bin(flag_value), res))
-        return res
-
-    def get_relation(self, flag_value):
-        # get the target flag first, and check if it suits
-        feasible = self.get_feasible(flag_value)
-        res = [r.name for r in feasible]
-        logging.debug('flag {} = {} may mean:{}'.format(flag_value, bin(flag_value), res))
-        return res
-
-    def is_relation(self, flag, relation):
-        feasible = self.get_feasible(flag)
-        res = False
-
-        if relation in feasible:
-            res = True
-            logging.debug('flag {} = {} match:{}'.format(flag, bin(flag), relation))
-        return res
 
 
 def test_relation():
