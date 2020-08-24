@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import sys
 try:
     from mutil.colorstr import *
@@ -22,12 +22,12 @@ def ascii():
         dec_color, hex_color, chr_color = colors
         spec_chr_color = str
 
-    spec_chr = ['a', 'z', 'A', 'Z', '0', '9', '\x0a', '\x0b']
+    spec_chr = ['a', 'z', 'A', 'Z', '0', '9', '\x0a', '\x0b',' ']
 
     table = []
 
     # prepare data
-    for i in xrange(128):
+    for i in range(128):
         res = []
         s = "%3d" % i
         res.append(dec_color(s))
@@ -50,9 +50,9 @@ def ascii():
     TAB = "\t"
     for i in range(len(table)):
         res = TAB.join(table[i])
-        if i % 4 == 0:
-            print
-        print res,
+        print(res,'|', end=' ')
+        if i % 4 == 3:
+            print()
 
 
 def main():

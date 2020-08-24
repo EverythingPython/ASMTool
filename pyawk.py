@@ -7,10 +7,13 @@ import logging
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-F", "--split", help="splitor, must escape code",
+parser.add_argument("-F", "-s", "--split", help="splitor, must escape code",
                     action="store", default=' ', type=str, dest="splitor")
-parser.add_argument("-p", "--format", help="print data in format, default use {{}}, -h to know others",
+parser.add_argument("-p", "--print", "--format", help="print data in format, default use {{}}, -h to know others",
                     action="store", default='', type=str, dest="format")
+
+parser.add_argument("-b", "--bracket", help="(default) change id flag to {}, e.g. {1}",
+                    action="store_true", dest="bracket")
 parser.add_argument("-d", "--dolar", help="change id flag to $, e.g. $1",
                     action="store_true", dest="dolar")
 parser.add_argument("-c", "--percent", help="change id flag to %%, e.g. %%1",
@@ -79,15 +82,38 @@ def process(line):
         print(s)
 
 
+def test():
+    # test first
+    args.splitor = ' '
+    args.format = '{1}'
+    line = 'websockets       6.0'
+    print(line)
+    process(line)
+
+    # test last
+    args.splitor = ' '
+    args.format = '{-1}'
+    line = 'websockets       6.0'
+    print(line)
+    process(line)
+
+    # test other symbol
+    args.dolar = True
+    args.splitor = ' '
+    args.format = '$-1'
+    line = 'websockets       6.0'
+    print(line)
+    process(line)
+
+    return
+
+
 def main():
     splitor = args.splitor
     args.splitor = splitor.encode('utf8').decode('unicode-escape')
 
-    if 0:
-        args.splitor = ' '
-        args.format = '{1}'
-        line = 'websockets       6.0'
-        process(line)
+    if args.test:
+        test()
         return
 
     fd = sys.stdin

@@ -12,6 +12,7 @@ def get_ins_class(bin=None, asm=None):
 
 
 def count_func_ins(addr):
+    count = 1
     ea = NextFunction(addr - 1)
     name = Name(addr)
 
@@ -19,6 +20,51 @@ def count_func_ins(addr):
     for e in FuncItems(ea):
         ins_count += 1
     print('function:{} has {} ins'.format(name, ins_count))
+
+
+def count_all_ins(start=0):
+    addr = start
+    count = 0
+
+    ea = NextFunction(addr)
+    print(hex(ea))
+    while ea != BADADDR:
+        next_ea = NextFunction(ea)
+        if next_ea == ea:
+            break
+        ea = next_ea
+        for e in FuncItems(ea):
+            count += 1
+    print(count)
+    return count
+
+
+def output_all_asm_ins(start=0):
+    addr = start
+    count = 0
+    with open('/Users/fengyouzheng/Desktop/ins.txt', 'w') as fd:
+        while addr!=BADADDR:
+            e = NextHead(addr)
+            if idaapi.isCode(idaapi.getFlags(e)):
+                fd .write('{},{}'.format(hex(e), GetMnem(e).lower()))
+                fd.write('\n')
+            addr = e
+
+def output_all_function_ins(start=0):
+    addr = start
+    count = 0
+
+    ea = NextFunction(addr)
+    print(hex(ea))
+    with open('/Users/fengyouzheng/Desktop/ins.txt', 'w') as fd:
+        while ea != BADADDR:
+            next_ea = NextFunction(ea)
+            if next_ea == ea:
+                break
+            ea = next_ea
+            for e in FuncItems(ea):
+                fd .write('{},{}'.format(hex(e), GetMnem(e).lower()))
+                fd.write('\n')
 
 
 def count_func(start=None, end=None):
