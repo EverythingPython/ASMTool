@@ -1,0 +1,9 @@
+download_coinhive_true.c
+download_dlopen_false.c
+git_global_config_true.c
+git_html_injection_true.c
+git_local_config_true.c
+git_sshconfig_true.c
+nodejs_coinhive_true.c
+pack_git_true.c
+pack_svn_false.c
