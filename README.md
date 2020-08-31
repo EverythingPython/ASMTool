@@ -14,6 +14,7 @@ Some tools for binary analyses.
   - [misc/vex](#miscvex)
   - [Crypto](#crypto)
   - [DB](#db)
+- [Ref](#ref)
 
 # Name Rule
 * eg = example.
@@ -78,3 +79,12 @@ some special encryption algorithm implement in python.
 - [SQLiteHelper.py](https://github.com/TomOrth/SQLiteHelper)
 
 > try ORM like `sqlalchemy`
+
+# Ref
+- Clang
+  - https://github.com/ethanhs/clang
+- Frida
+  - https://github.com/iddoeldor/frida-snippets
+- IDA
+  - https://github.com/arizvisa/ida-minsc
+  - https://github.com/idapython/src
