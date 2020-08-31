@@ -62,7 +62,7 @@ def box(text, box):
 
     res = ''.join(output)
     if debug:
-        print res
+        print(res)
     return res
 
 
@@ -78,7 +78,7 @@ def shift_bytes(data, num, size=32, reverse=False):
     """
     default ror, 32bit
     """
-    f = [0xf << (i * 4) for i in xrange(size / 4)]
+    f = [0xf << (i * 4) for i in range(size / 4)]
     mask = sum(f)
     if reverse:
         num = size - num
@@ -94,18 +94,18 @@ def sub_key(key, cipher):
     n = len(cipher)
 
     k = []
-    for i in xrange(0, len(key), 4):
+    for i in range(0, len(key), 4):
         t1 = list(key[i:i + 4])
         t1.reverse()
         t2 = struct.unpack('I',  ''.join(t1))[0]
 
         if debug:
-            print t2
+            print(t2)
         k.append(t2)
 
     shift = [32, 24, 16, 8]
     j = 0
-    for i in xrange(0, n, 4):
+    for i in range(0, n, 4):
         data = list(cipher[i:i + 4])
         data.reverse()
         t1 = struct.unpack('I', ''.join(data))[0]
@@ -120,7 +120,7 @@ def sub_key(key, cipher):
         bytes = list(bytes)
         bytes.reverse()
         output.extend(bytes)
-    print output
+    print(output)
     return ''.join(output)
 
 
@@ -129,17 +129,17 @@ def add_key(key, cipher):
     n = len(cipher)
 
     k = []
-    for i in xrange(0, len(key), 4):
+    for i in range(0, len(key), 4):
         t1 = key[i:i + 4]
         t1 = ''.join(t1)
         t2 = struct.unpack('I', t1)[0]
         if debug:
-            print t2
+            print(t2)
         k.append(t2)
 
     shift = [32, 24, 16, 8]
     j = 0
-    for i in xrange(0, n, 4):
+    for i in range(0, n, 4):
         data = cipher[i:i + 4]
         t1 = struct.unpack('I', ''.join(data))[0]
 
@@ -151,7 +151,7 @@ def add_key(key, cipher):
 
         bytes = struct.pack('cccc', ans)
         output.extend(bytes)
-    print output
+    print(output)
     return
 
 
@@ -159,6 +159,7 @@ def decrypto(key, cipher):
     plain = []
 
     key = sub_bytes(key)
+    
     t1 = sub_key(key, cipher)
     t2 = re_sub_bytes(t1)
 
@@ -195,4 +196,4 @@ if __name__ == '__main__':
     cipher = cipher_base64.decode("base64")
 
     plain = decrypto(key, cipher[4:])
-    print plain
+    print(plain)
