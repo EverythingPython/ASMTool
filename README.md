@@ -88,3 +88,6 @@ some special encryption algorithm implement in python.
 - IDA
   - https://github.com/arizvisa/ida-minsc
   - https://github.com/idapython/src
+- Fuzz
+  - https://gitlab.com/akihe/radamsa
+  - ASAN
